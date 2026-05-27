@@ -257,7 +257,7 @@
 			#size-cells = <1>;
 
 			partition@0 {
-				label = "nand_test";
+				label = "rootfs";
 				reg = <0x0 0x3400000>;
 			};
 
@@ -268,7 +268,7 @@
 			};
 
 			partition@3c00000 {
-				label = "nand_test_1";
+				label = "rootfs_1";
 				reg = <0x3c00000 0x3400000>;
 			};
 
