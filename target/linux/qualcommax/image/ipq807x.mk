@@ -254,6 +254,21 @@ define Device/linksys_mx8500
 endef
 TARGET_DEVICES += linksys_mx8500
 
+define Device/nari_nrcpe-d1
+	$(call Device/FitImage)
+	$(call Device/UbiFit)
+	DEVICE_VENDOR := NARI
+	DEVICE_MODEL := NRCPE_D1
+	BLOCKSIZE := 128k
+	PAGESIZE := 2048
+	DEVICE_DTS_CONFIG := config@hk09
+	SOC := ipq8072
+	DEVICE_PACKAGES := ipq-wifi-nrcpe-d1
+	IMAGES += factory.bin
+	IMAGE/factory.bin := append-ubi | qsdk-ipq-factory-nand
+endef
+TARGET_DEVICES += nari_nrcpe-d1
+
 define Device/netgear_rax120v2
 	$(call Device/FitImage)
 	$(call Device/UbiFit)
