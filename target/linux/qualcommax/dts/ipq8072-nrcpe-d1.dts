@@ -34,13 +34,6 @@
 		mmc1 = &sdhc_2;
 	};
 	
-	/*reg_sdcc2_vmmc: regulator-sdcc2-vmmc {
-		compatible = "regulator-fixed";
-		regulator-name = "SDCC2_VMMC";
-		regulator-min-microvolt = <2950000>;
-		regulator-max-microvolt = <2950000>;
-		regulator-always-on;
-	};*/
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
@@ -113,10 +106,6 @@
 	};
 };
 
-/*&l11 {
-	regulator-min-microvolt = <1800000>;
-	regulator-max-microvolt = <2950000>;
-};*/
 
 &soc {
 	sdhc_2: mmc@7864900 {
@@ -136,7 +125,6 @@
 		max-frequency = <50000000>;
 		bus-width = <4>;
 
-		//vmmc-supply = <&reg_sdcc2_vmmc>;
 		vqmmc-supply = <&l11>;
 		
 		pinctrl-0 = <&sdcc2_cd_pins>;
@@ -187,11 +175,11 @@
 		};
 	};
 
-	pcie0_default_state: pcie-pins {
-		pins = "gpio58", "gpio59";
-		function = "gpio";
-		drive-strength = <8>;
-		bias-pull-down;
+	pcie0_default_state: pcie0_wake_gpio {
+			bias-pull-up;
+			drive-strength = <8>;
+			function = "pcie0_wake";
+			pins = "gpio59";
 	};
 
 	serial_console_pins: serial-console-pins {
@@ -212,6 +200,12 @@
 			drive-strength = <8>;
 			bias-pull-up;
 		};
+	};
+	modem_pwr_en: modem-pwr-en {
+		gpio-hog;
+		gpios = <27 GPIO_ACTIVE_HIGH>;
+		output-high;
+		line-name = "modem_pwr_en";
 	};
 };
 
@@ -378,7 +372,11 @@
 
 			partition@480000 {
 				label = "0:appsblenv";
-				reg = <0x480000 0x010000>;
+				reg = <0x480000 0x10000>;
+
+				nvmem-layout {
+					compatible = "u-boot,env";
+				};
 			};
 
 			partition@490000 {
@@ -531,20 +529,14 @@
 };
 
 &pcie0 {
+	status = "okay";
 	pinctrl-0 = <&pcie0_default_state>;
 	pinctrl-names = "default";
 	perst-gpio = <&tlmm 58 GPIO_ACTIVE_LOW>;
-	wake-gpio = <&tlmm 59 GPIO_ACTIVE_HIGH>;
-	status = "okay";
 
 	pcie@0 {
-		#address-cells = <3>;
-		#size-cells = <2>;
-		reg = <0x0 0x0 0x0 0x0 0x0>;
-		device_type = "pci";
-
 		modem@0,0 {
-			reg = <0x0 0x0 0x0 0x0 0x0>;
+			reg = <0x00 0x00 0x00 0x00 0x00>;
 		};
 	};
 };
