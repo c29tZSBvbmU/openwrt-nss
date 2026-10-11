@@ -1,0 +1,110 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+. /lib/functions.sh
+. /lib/functions/system.sh
+
+external_overlay_supported() {
+	case "$(board_name)" in
+	nari,nrcpe-d1)
+		return 0
+		;;
+	esac
+
+	return 1
+}
+
+nrcpe_find_ubi_by_mtd_num() {
+	local mtd_num="$1"
+	local ubi
+
+	for ubi in /sys/class/ubi/ubi[0-9]*; do
+		[ -e "$ubi/mtd_num" ] || continue
+		[ "$(cat "$ubi/mtd_num" 2>/dev/null)" = "$mtd_num" ] || continue
+		basename "$ubi"
+		return 0
+	done
+
+	return 1
+}
+
+nrcpe_find_ubi_volume_dev() {
+	local ubi="$1"
+	local vol_name="$2"
+	local name vol
+
+	for name in /sys/class/ubi/${ubi}_*/name; do
+		[ -e "$name" ] || continue
+		[ "$(cat "$name" 2>/dev/null)" = "$vol_name" ] || continue
+		vol="${name%/name}"
+		basename "$vol"
+		return 0
+	done
+
+	return 1
+}
+
+external_overlay_create_ubifs() {
+	local vol_dev="$1"
+	local tmpdir="/tmp/nrcpe-overlay-init"
+
+	mkdir -p "$tmpdir" || return 1
+	mount -t ubifs "/dev/${vol_dev}" "$tmpdir" || return 1
+	umount "$tmpdir" || return 1
+	rmdir "$tmpdir" 2>/dev/null
+}
+
+external_overlay_init() {
+	local mtd_idx ubi_dev vol_dev initialized
+
+	external_overlay_supported || return 0
+
+	mtd_idx="$(find_mtd_index overlay)"
+	[ -n "$mtd_idx" ] || {
+		echo "External overlay init: mtd partition 'overlay' not found"
+		return 1
+	}
+
+	ubi_dev="$(nrcpe_find_ubi_by_mtd_num "$mtd_idx")"
+	if [ -z "$ubi_dev" ]; then
+		ubiattach --dev-path="/dev/mtd${mtd_idx}" --devn="$mtd_idx" >/dev/null 2>&1
+		ubi_dev="$(nrcpe_find_ubi_by_mtd_num "$mtd_idx")"
+	fi
+
+	if [ -z "$ubi_dev" ]; then
+		echo "External overlay init: formatting /dev/mtd${mtd_idx} as UBI"
+		ubiformat "/dev/mtd${mtd_idx}" -y || return 1
+		ubiattach --dev-path="/dev/mtd${mtd_idx}" --devn="$mtd_idx" || return 1
+		ubi_dev="ubi${mtd_idx}"
+		initialized=1
+	fi
+
+	[ -n "$ubi_dev" ] || {
+		echo "External overlay init: attached UBI device not found"
+		return 1
+	}
+
+	vol_dev="$(nrcpe_find_ubi_volume_dev "$ubi_dev" rootfs_data)"
+	if [ -z "$vol_dev" ]; then
+		echo "External overlay init: creating /dev/${ubi_dev}:rootfs_data"
+		ubimkvol "/dev/${ubi_dev}" -N rootfs_data -m || return 1
+		vol_dev="$(nrcpe_find_ubi_volume_dev "$ubi_dev" rootfs_data)"
+		[ -n "$vol_dev" ] || return 1
+		ubiupdatevol "/dev/${vol_dev}" -t || return 1
+		external_overlay_create_ubifs "$vol_dev" || return 1
+		initialized=1
+	fi
+
+	echo "External overlay init: prepared ${ubi_dev}:rootfs_data"
+
+	if [ -n "$initialized" ]; then
+		echo "External overlay init: rebooting to activate external overlay"
+		sync
+		(sleep 5; reboot) &
+	fi
+
+	return 0
+}
+
+external_overlay_init
+
